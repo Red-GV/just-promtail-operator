@@ -1,0 +1,24 @@
+# permissions for end users to edit promtails.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-editor-role
+rules:
+- apiGroups:
+  - logging.just-loki.io
+  resources:
+  - promtails
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - logging.just-loki.io
+  resources:
+  - promtails/status
+  verbs:
+  - get

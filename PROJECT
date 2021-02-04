@@ -3,6 +3,11 @@ layout: go.kubebuilder.io/v3
 multigroup: true
 projectName: promtail-operator
 repo: github.com/huikang/promtail-operator
+resources:
+- crdVersion: v1
+  group: logging
+  kind: Promtail
+  version: v1
 version: 3-alpha
 plugins:
   manifests.sdk.operatorframework.io/v2: {}

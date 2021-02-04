@@ -1,0 +1,20 @@
+# permissions for end users to view promtails.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-viewer-role
+rules:
+- apiGroups:
+  - logging.just-loki.io
+  resources:
+  - promtails
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - logging.just-loki.io
+  resources:
+  - promtails/status
+  verbs:
+  - get
