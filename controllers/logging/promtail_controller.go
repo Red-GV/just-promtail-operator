@@ -37,6 +37,7 @@ type PromtailReconciler struct {
 // +kubebuilder:rbac:groups=logging.just-loki.io,resources=promtails,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=logging.just-loki.io,resources=promtails/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=logging.just-loki.io,resources=promtails/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=pods;nodes;nodes/proxy;services;endpoints,verbs=get;watch;list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

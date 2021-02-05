@@ -4,8 +4,20 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: manager-role
+  name: promtail-manager-role
 rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - nodes
+  - nodes/proxy
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - logging.just-loki.io
   resources:
