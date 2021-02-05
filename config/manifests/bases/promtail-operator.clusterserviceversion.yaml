@@ -1,0 +1,48 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: promtail-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: Promtail is the Schema for the promtails API
+      displayName: Promtail
+      kind: Promtail
+      name: promtails.logging.just-loki.io
+      version: v1
+  description: promtail operator
+  displayName: promtail
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - loki
+  - promtail
+  links:
+  - name: Promtail Operator
+    url: https://promtail-operator.domain
+  maintainers:
+  - email: hkang@redhat.com
+    name: huikang
+  maturity: alpha
+  provider:
+    name: community
+  version: 0.0.0
