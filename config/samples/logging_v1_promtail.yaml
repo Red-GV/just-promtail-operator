@@ -4,4 +4,7 @@ metadata:
   name: promtail-sample
 spec:
   # Add fields here
-  foo: bar
+  promtailConfig:
+    client:
+      url: http://loki.svc:9100
+

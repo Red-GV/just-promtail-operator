@@ -22,11 +22,58 @@ import (
 
 // PromtailSpec defines the desired state of Promtail
 type PromtailSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Strategy can be either 'DaemonSet' (default) or 'Sidecar'
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
 
-	// Foo is an example field of Promtail. Edit Promtail_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Specification of the promtail deployment
+	//
+	// +optional
+	Config PromtailConfig `json:"promtailConfig"`
+}
+
+// PromtailConfig defines the configuration of the promtail deployment
+type PromtailConfig struct {
+	// Specification of the promtail deployment
+	//
+	// +optional
+	Client ClientConfig `json:"client"`
+
+	// Specification of ScrapeConfigs
+	//
+	// +optional
+	ScrapeConfigs ScrapeConfig `json:"scrape_configs"`
+}
+
+// ClientConfig defines the configuration of the promtail deployment
+type ClientConfig struct {
+	// The url of loki backend
+	//
+	// +optional
+	URL string `json:"url,omitempty"`
+	// Maximum amount of time to wait before sending a batch
+	//
+	// +optional
+	Batchwait string `json:"batchwait,omitempty"`
+}
+
+// ScrapeConfig configures how Promtail can scrape logs
+type ScrapeConfig struct {
+	// The url of loki backend
+	//
+	// +optional
+	Jobs []ScrapeJob `json:"scrape_jobs"`
+}
+
+// ElasticsearchNode struct represents individual node in Elasticsearch cluster
+type ScrapeJob struct {
+	// name of the scrape job
+	//
+	// +optional
+	JobName string `json:"job_name,omitempty"`
 }
 
 // PromtailStatus defines the observed state of Promtail

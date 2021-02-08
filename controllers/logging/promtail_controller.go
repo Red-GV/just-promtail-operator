@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,7 +53,17 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	_ = r.Log.WithValues("promtail", req.NamespacedName)
 
 	// your logic here
+	// Ensure existence of servicesaccount
+	sa, err := promtailServiceAccount()
+	if err != nil {
+		return ctrl.Result{}, errors.Wrap(err, "initializing node-exporter Service failed")
+	}
 
+	if err := createOrUpdateServiceAccount(sa); err != nil {
+		return ctrl.Result{}, errors.Wrap(err, "Failed to reconcile ServiceAccount for Elasticsearch cluster")
+	}
+
+	// Ensure existence of config maps
 	return ctrl.Result{}, nil
 }
 

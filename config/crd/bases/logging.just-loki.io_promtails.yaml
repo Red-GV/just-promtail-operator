@@ -36,9 +36,40 @@ spec:
           spec:
             description: PromtailSpec defines the desired state of Promtail
             properties:
-              foo:
-                description: Foo is an example field of Promtail. Edit Promtail_types.go
-                  to remove/update
+              image:
+                type: string
+              promtailConfig:
+                description: Specification of the promtail deployment
+                properties:
+                  client:
+                    description: Specification of the promtail deployment
+                    properties:
+                      batchwait:
+                        description: Maximum amount of time to wait before sending
+                          a batch
+                        type: string
+                      url:
+                        description: The url of loki backend
+                        type: string
+                    type: object
+                  scrape_configs:
+                    description: Specification of ScrapeConfigs
+                    properties:
+                      scrape_jobs:
+                        description: The url of loki backend
+                        items:
+                          description: ElasticsearchNode struct represents individual
+                            node in Elasticsearch cluster
+                          properties:
+                            job_name:
+                              description: name of the scrape job
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                type: object
+              strategy:
+                description: Strategy can be either 'DaemonSet' (default) or 'Sidecar'
                 type: string
             type: object
           status:
