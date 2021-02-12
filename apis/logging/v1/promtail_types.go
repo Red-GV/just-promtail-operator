@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,7 +28,22 @@ type PromtailSpec struct {
 	Strategy string `json:"strategy,omitempty"`
 
 	// +optional
+	// +listType=atomic
+	Volumes []v1.Volume `json:"volumes,omitempty"`
+
+	// +optional
+	// +listType=atomic
+	VolumeMounts []v1.VolumeMount `json:"volumeMounts,omitempty"`
+
+	// +optional
 	Image string `json:"image,omitempty"`
+
+	// +nullable
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
 
 	// Specification of the promtail deployment
 	//

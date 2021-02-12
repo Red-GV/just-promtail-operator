@@ -2,6 +2,7 @@ apiVersion: logging.just-loki.io/v1
 kind: Promtail
 metadata:
   name: promtail-sample
+  namespace: default
 spec:
   # Add fields here
   promtailConfig:
