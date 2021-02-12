@@ -21,11 +21,20 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	loggingv1 "github.com/huikang/promtail-operator/apis/logging/v1"
+)
+
+var (
+	defautlPromtailImage = "docker.io/grafana/promtail:2.1.0"
 )
 
 // PromtailReconciler reconciles a Promtail object
@@ -64,6 +73,42 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Ensure existence of config maps
+
+	// Fetch the promtail instance
+	promtail := &loggingv1.Promtail{}
+	err = r.Get(ctx, req.NamespacedName, promtail)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			r.Log.Info("Promtail resource not found. Ignoring since object must be deleted")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		r.Log.Error(err, "Failed to get Promtail")
+		return ctrl.Result{}, err
+	}
+
+	// Check if the daemonset already exists, if not create a new one
+	found := &appsv1.DaemonSet{}
+	err = r.Get(ctx, types.NamespacedName{Name: promtail.Name, Namespace: promtail.Namespace}, found)
+	if err != nil && apierrors.IsNotFound(err) {
+		// Define a new deployment
+		de := r.daemonsetForMemcached(promtail)
+		r.Log.Info("Creating a new DaemonSet", "Daemonset.Namespace", de.Namespace, "Deployment.Name", de.Name)
+		err = r.Create(ctx, de)
+		if err != nil {
+			r.Log.Error(err, "Failed to create new Deployment", "Deployment.Namespace", de.Namespace, "Deployment.Name", de.Name)
+			return ctrl.Result{}, err
+		}
+		// Daemon created successfully - return and requeue
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		r.Log.Error(err, "Failed to get Deployment")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -71,5 +116,51 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 func (r *PromtailReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&loggingv1.Promtail{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
+}
+
+func (r *PromtailReconciler) daemonsetForMemcached(p *loggingv1.Promtail) *appsv1.DaemonSet {
+	ls := labelsForMemcached(p.Name)
+	var imageName string
+	if p.Spec.Image == "" {
+		imageName = defautlPromtailImage
+	}
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      p.Name,
+			Namespace: p.Namespace,
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: ls,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: ls,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image: imageName,
+						Name:  "promtail",
+						// Command: []string{"promtail", "-m=64", "-o", "modern", "-v"},
+						Args: []string{"-config.file=/etc/promtail/promtail.yaml"},
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 3101,
+							Name:          "http-metrics",
+						}},
+					}},
+				},
+			},
+		},
+	}
+
+	ctrl.SetControllerReference(p, ds, r.Scheme)
+	return ds
+}
+
+// labelsForMemcached returns the labels for selecting the resources
+// belonging to the given memcached CR name.
+func labelsForMemcached(name string) map[string]string {
+	return map[string]string{"app": "promtail", "memcached_cr": name}
 }
