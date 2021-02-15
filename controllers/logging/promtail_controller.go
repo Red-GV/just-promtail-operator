@@ -18,8 +18,12 @@ package logging
 
 import (
 	"context"
+	"io/ioutil"
+	"path"
+	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/grafana/loki/pkg/promtail/config"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,11 +34,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"gopkg.in/yaml.v2"
+
 	loggingv1 "github.com/huikang/promtail-operator/apis/logging/v1"
 )
 
 var (
 	defautlPromtailImage = "docker.io/grafana/promtail:2.1.0"
+	PromtailScrapeConfig = "scrape_config.yaml"
 )
 
 // PromtailReconciler reconciles a Promtail object
@@ -42,6 +49,8 @@ type PromtailReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+
+	AssetsPath string
 }
 
 // +kubebuilder:rbac:groups=logging.just-loki.io,resources=promtails,verbs=get;list;watch;create;update;patch;delete
@@ -72,8 +81,6 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, errors.Wrap(err, "Failed to reconcile ServiceAccount for Elasticsearch cluster")
 	}
 
-	// Ensure existence of config maps
-
 	// Fetch the promtail instance
 	promtail := &loggingv1.Promtail{}
 	err = r.Get(ctx, req.NamespacedName, promtail)
@@ -90,12 +97,23 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	// Ensure existence of secret for config, if not create a default one
+	if updated, err := r.createOrUpdateScrapeConfigSecret(ctx, promtail); err != nil {
+		r.Log.Error(err, "Failed to reconcile secret for scrape configuration")
+		return ctrl.Result{}, err
+	} else if updated {
+		return ctrl.Result{
+			Requeue:      true,
+			RequeueAfter: time.Second,
+		}, nil
+	}
+
 	// Check if the daemonset already exists, if not create a new one
 	found := &appsv1.DaemonSet{}
 	err = r.Get(ctx, types.NamespacedName{Name: promtail.Name, Namespace: promtail.Namespace}, found)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new deployment
-		de := r.daemonsetForMemcached(promtail)
+		de := r.daemonsetForPromtail(promtail)
 		r.Log.Info("Creating a new DaemonSet", "Daemonset.Namespace", de.Namespace, "Deployment.Name", de.Name)
 		err = r.Create(ctx, de)
 		if err != nil {
@@ -112,15 +130,73 @@ func (r *PromtailReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
+func (r *PromtailReconciler) createOrUpdateScrapeConfigSecret(ctx context.Context, promtail *loggingv1.Promtail) (bool, error) {
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Name: promtail.Name, Namespace: promtail.Namespace}, secret)
+	if err != nil && apierrors.IsNotFound(err) {
+		// Define a new secret
+		se, err := r.secretForPromtail(promtail)
+		if se == nil {
+			r.Log.Error(err, "Failed to create new secret")
+			return false, err
+		}
+		r.Log.Info("Creating a new secret", "Secret.Namespace", se.Namespace, "Secret.Name", se.Name)
+		err = r.Create(ctx, se)
+		if err != nil {
+			r.Log.Error(err, "Failed to create new secret", "Secret.Namespace", se.Namespace, "Secret.Name", se.Name)
+			return false, err
+		}
+		// secret created successfully - return and requeue with some delay
+		return true, nil
+	} else if err != nil {
+		r.Log.Error(err, "Failed to get Secret")
+		return false, err
+	}
+	return true, nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *PromtailReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&loggingv1.Promtail{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }
 
-func (r *PromtailReconciler) daemonsetForMemcached(p *loggingv1.Promtail) *appsv1.DaemonSet {
+func (r *PromtailReconciler) secretForPromtail(p *loggingv1.Promtail) (*corev1.Secret, error) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      p.Name,
+			Namespace: p.Namespace,
+		},
+		StringData: map[string]string{},
+	}
+	filepath := path.Join(r.AssetsPath, PromtailScrapeConfig)
+	r.Log.Info("load", "scrape config", filepath)
+	f, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		r.Log.Error(err, "failed to read asset", filepath)
+		return nil, err
+	}
+	var config config.Config
+	err = yaml.Unmarshal(f, &config)
+	if err != nil {
+		r.Log.Error(err, "error parsing yaml")
+		return nil, err
+	}
+	strConfig, err := yaml.Marshal(config)
+	if err != nil {
+		r.Log.Error(err, "error convert promtail config to byte data")
+		return nil, err
+	}
+	secret.StringData["promtail.yaml"] = string(strConfig)
+
+	ctrl.SetControllerReference(p, secret, r.Scheme)
+	return secret, nil
+}
+
+func (r *PromtailReconciler) daemonsetForPromtail(p *loggingv1.Promtail) *appsv1.DaemonSet {
 	ls := labelsForMemcached(p.Name)
 	var imageName string
 	if p.Spec.Image == "" {
