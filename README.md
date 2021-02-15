@@ -10,8 +10,22 @@ make install
 
 1. Run locally outside the cluster
 
+Deploy the required ClusterRole, serviceAccount:
+
+```
+make deploy
+```
+
+Start the controller:
+
 ```
 make run
+```
+
+Create an instance
+
+```
+kubectl apply -f ./config/samples/logging_v1_promtail.yaml 
 ```
 
 2. Run as a deployment inside the cluster
